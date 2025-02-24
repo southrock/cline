@@ -1,6 +1,15 @@
 name: "Publish Release"
 
+env:
+    CI: false
+
 on:
+    push:
+        branches: ["main"]
+
+    pull_request:
+        branches: ["main"]
+
     workflow_dispatch:
         inputs:
             release-type:
@@ -11,6 +20,7 @@ on:
                 options:
                     - pre-release
                     - release
+                    - local-release
 
 permissions:
     contents: write
@@ -69,14 +79,14 @@ jobs:
                   VERSION=$(node -p "require('./package.json').version")
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-            - name: Create Git Tag
-              id: create_tag
-              run: |
-                  VERSION=v${{ steps.get_version.outputs.version }}
-                  echo "tag=$VERSION" >> $GITHUB_OUTPUT
-                  echo "Tagging with $VERSION"
-                  git tag "$VERSION"
-                  git push origin "$VERSION"
+            # - name: Create Git Tag
+            #   id: create_tag
+            #   run: |
+            #       VERSION=v${{ steps.get_version.outputs.version }}
+            #       echo "tag=$VERSION" >> $GITHUB_OUTPUT
+            #       echo "Tagging with $VERSION"
+            #       git tag "$VERSION"
+            #       git push origin "$VERSION"
 
             - name: Package and Publish Extension
               env:
@@ -86,13 +96,13 @@ jobs:
                   # Required to generate the .vsix
                   vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"
 
-                  if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
-                    npm run publish:marketplace:prerelease
-                    echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
-                  else
-                    npm run publish:marketplace
-                    echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
-                  fi
+                  # if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
+                  #   npm run publish:marketplace:prerelease
+                  #   echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
+                  # else
+                  #   npm run publish:marketplace
+                  #   echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
+                  # fi
 
             # - name: Get Changelog Entry
             #   id: changelog
@@ -103,13 +113,19 @@ jobs:
             #       # set in "## [1.2.3] - 2025-01-28" style
             #       version: latest
 
-            - name: Create GitHub Release
-              uses: softprops/action-gh-release@v1
+            # - name: Create GitHub Release
+            #   uses: softprops/action-gh-release@v1
+            #   with:
+            #       tag_name: ${{ steps.create_tag.outputs.tag }}
+            #       files: "*.vsix"
+            #       # body: ${{ steps.changelog.outputs.content }}
+            #       generate_release_notes: true
+            #       prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
+            #   env:
+            #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Collect Artifact
+              uses: actions/upload-artifact@v4
               with:
-                  tag_name: ${{ steps.create_tag.outputs.tag }}
-                  files: "*.vsix"
-                  # body: ${{ steps.changelog.outputs.content }}
-                  generate_release_notes: true
-                  prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  name: release
+                  path: "**/*.vsix"
